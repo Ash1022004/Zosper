@@ -11,8 +11,6 @@ import heroImage from '@/assets/hero-jobs.jpg';
 
 const Index = () => {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<JobFiltersType>({
     location: '',
     jobType: '',
@@ -21,6 +19,8 @@ const Index = () => {
     searchQuery: ''
   });
   const [heroSearch, setHeroSearch] = useState('');
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchJobs();
@@ -35,22 +35,21 @@ const Index = () => {
 
       if (error) throw error;
 
-      const formattedJobs: Job[] = data.map(job => ({
+      const formattedJobs: Job[] = (data || []).map((job: any) => ({
         id: job.id,
         title: job.title,
         company: job.company,
         location: job.location,
         experience: job.experience,
-        salary: job.salary || undefined,
+        salary: job.salary,
         datePosted: new Date(job.date_posted),
-        jobType: job.job_type as any,
+        jobType: job.job_type as 'Full-time' | 'Internship' | 'Contract' | 'Part-time',
         description: job.description,
         requirements: job.requirements || [],
         responsibilities: job.responsibilities || [],
-        benefits: job.benefits || undefined,
-        contactEmail: job.contact_email || undefined,
-        contactWhatsApp: job.contact_whatsapp || undefined,
-        companyLogo: job.company_logo || undefined
+        benefits: job.benefits,
+        contactEmail: job.contact_email,
+        contactWhatsApp: job.contact_whatsapp,
       }));
 
       setJobs(formattedJobs);
@@ -101,14 +100,6 @@ const Index = () => {
       return matchesLocation && matchesJobType && matchesExperience && matchesSearch && matchesDate;
     });
   }, [jobs, filters]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-muted-foreground">Loading jobs...</p>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -193,7 +184,12 @@ const Index = () => {
               </p>
             </div>
 
-            {filteredJobs.length === 0 ? (
+            {loading ? (
+              <div className="text-center py-12">
+                <Briefcase className="w-16 h-16 mx-auto text-muted-foreground/50 mb-4 animate-pulse" />
+                <p className="text-muted-foreground">Loading jobs...</p>
+              </div>
+            ) : filteredJobs.length === 0 ? (
               <div className="text-center py-12">
                 <Briefcase className="w-16 h-16 mx-auto text-muted-foreground/50 mb-4" />
                 <h3 className="text-xl font-semibold text-foreground mb-2">No jobs found</h3>

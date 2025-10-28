@@ -1,124 +1,78 @@
-import { useState } from 'react';
-import { useAuth } from '@/hooks/useAuth';
-import { Auth } from '@/components/Auth';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { LogOut, Upload, Plus } from 'lucide-react';
+import { Briefcase, LogOut, Upload, Plus } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const Admin = () => {
-  const { user, loading, signOut } = useAuth();
-  const [uploading, setUploading] = useState(false);
-  const [formData, setFormData] = useState({
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [jobForm, setJobForm] = useState({
     title: '',
     company: '',
     location: '',
     experience: '',
     salary: '',
-    jobType: 'Full-time',
+    jobType: 'Full-time' as 'Full-time' | 'Internship' | 'Contract' | 'Part-time',
     description: '',
     requirements: '',
     responsibilities: '',
     benefits: '',
     contactEmail: '',
-    contactWhatsApp: ''
+    contactWhatsApp: '',
   });
 
-  if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
-  }
+  useEffect(() => {
+    checkUser();
+  }, []);
 
-  if (!user) {
-    return <Auth />;
-  }
-
-  const handleCSVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploading(true);
-    try {
-      const text = await file.text();
-      const lines = text.split('\n').filter(line => line.trim());
-      const headers = lines[0].split(',').map(h => h.trim());
-      
-      const jobs = lines.slice(1).map(line => {
-        const values = line.split(',').map(v => v.trim());
-        const job: any = { created_by: user.id };
-        
-        headers.forEach((header, index) => {
-          const key = header.toLowerCase().replace(/ /g, '_');
-          if (['requirements', 'responsibilities', 'benefits'].includes(key)) {
-            job[key] = values[index] ? values[index].split(';').map(i => i.trim()) : [];
-          } else {
-            job[key] = values[index] || '';
-          }
-        });
-        
-        return job;
-      });
-
-      for (const job of jobs) {
-        // Map CSV keys to database columns
-        const jobData = {
-          title: job.title,
-          company: job.company,
-          location: job.location,
-          experience: job.experience,
-          salary: job.salary || null,
-          job_type: job.job_type || job.jobType || 'Full-time',
-          description: job.description,
-          requirements: job.requirements || [],
-          responsibilities: job.responsibilities || [],
-          benefits: job.benefits || null,
-          contact_email: job.contact_email || job.contactEmail || null,
-          contact_whatsapp: job.contact_whatsapp || job.contactWhatsApp || null,
-          created_by: user.id
-        };
-        
-        const { error } = await supabase.from('jobs').insert(jobData);
-        if (error) throw error;
-      }
-
-      toast.success(`Successfully uploaded ${jobs.length} jobs!`);
-      e.target.value = '';
-    } catch (error: any) {
-      toast.error('Error uploading CSV: ' + error.message);
-    } finally {
-      setUploading(false);
+  const checkUser = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      navigate('/login');
+    } else {
+      setUser(user);
     }
   };
 
-  const handleManualSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    try {
-      const jobData = {
-        title: formData.title,
-        company: formData.company,
-        location: formData.location,
-        experience: formData.experience,
-        salary: formData.salary || null,
-        job_type: formData.jobType,
-        description: formData.description,
-        requirements: formData.requirements.split('\n').filter(r => r.trim()),
-        responsibilities: formData.responsibilities.split('\n').filter(r => r.trim()),
-        benefits: formData.benefits ? formData.benefits.split('\n').filter(b => b.trim()) : null,
-        contact_email: formData.contactEmail || null,
-        contact_whatsapp: formData.contactWhatsApp || null,
-        created_by: user.id
-      };
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate('/');
+  };
 
-      const { error } = await supabase.from('jobs').insert(jobData);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const { error } = await supabase.from('jobs').insert({
+        title: jobForm.title,
+        company: jobForm.company,
+        location: jobForm.location,
+        experience: jobForm.experience,
+        salary: jobForm.salary || null,
+        job_type: jobForm.jobType,
+        description: jobForm.description,
+        requirements: jobForm.requirements.split('\n').filter(r => r.trim()),
+        responsibilities: jobForm.responsibilities.split('\n').filter(r => r.trim()),
+        benefits: jobForm.benefits ? jobForm.benefits.split('\n').filter(b => b.trim()) : null,
+        contact_email: jobForm.contactEmail || null,
+        contact_whatsapp: jobForm.contactWhatsApp || null,
+        created_by: user.id,
+      });
 
       if (error) throw error;
 
       toast.success('Job posted successfully!');
-      setFormData({
+      setJobForm({
         title: '',
         company: '',
         location: '',
@@ -130,150 +84,267 @@ const Admin = () => {
         responsibilities: '',
         benefits: '',
         contactEmail: '',
-        contactWhatsApp: ''
+        contactWhatsApp: '',
       });
     } catch (error: any) {
-      toast.error('Error posting job: ' + error.message);
+      toast.error(error.message || 'Failed to post job');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCSVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setLoading(true);
+    try {
+      const text = await file.text();
+      const rows = text.split('\n').slice(1);
+      
+      const jobs = rows
+        .filter(row => row.trim())
+        .map(row => {
+          const cols = row.split(',').map(col => col.trim().replace(/^"|"$/g, ''));
+          return {
+            title: cols[0],
+            company: cols[1],
+            location: cols[2],
+            experience: cols[3],
+            salary: cols[4] || null,
+            job_type: cols[5] as 'Full-time' | 'Internship' | 'Contract' | 'Part-time',
+            description: cols[6],
+            requirements: cols[7] ? cols[7].split('|') : [],
+            responsibilities: cols[8] ? cols[8].split('|') : [],
+            benefits: cols[9] ? cols[9].split('|') : null,
+            contact_email: cols[10] || null,
+            contact_whatsapp: cols[11] || null,
+            created_by: user.id,
+          };
+        });
+
+      const { error } = await supabase.from('jobs').insert(jobs);
+      if (error) throw error;
+
+      toast.success(`${jobs.length} jobs uploaded successfully!`);
+      e.target.value = '';
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to upload CSV');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b">
+      <header className="border-b bg-card">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Admin Panel</h1>
-          <Button onClick={signOut} variant="outline">
+          <div className="flex items-center gap-2">
+            <Briefcase className="w-6 h-6 text-primary" />
+            <h1 className="text-xl font-bold">Admin Dashboard</h1>
+          </div>
+          <Button onClick={handleLogout} variant="outline">
             <LogOut className="w-4 h-4 mr-2" />
             Logout
           </Button>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-8 space-y-8">
-        {/* CSV Upload Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Upload className="w-5 h-5" />
-              Bulk Upload Jobs (CSV)
-            </CardTitle>
-            <CardDescription>
-              Upload a CSV file with job listings. Format: title, company, location, experience, salary, job_type, description, requirements (semicolon-separated), responsibilities (semicolon-separated), benefits (semicolon-separated), contact_email, contact_whatsapp
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Input
-              type="file"
-              accept=".csv"
-              onChange={handleCSVUpload}
-              disabled={uploading}
-            />
-            {uploading && <p className="mt-2 text-sm text-muted-foreground">Uploading...</p>}
-          </CardContent>
-        </Card>
+      <main className="max-w-7xl mx-auto px-4 py-8">
+        <Tabs defaultValue="add" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="add">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Job
+            </TabsTrigger>
+            <TabsTrigger value="upload">
+              <Upload className="w-4 h-4 mr-2" />
+              CSV Upload
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Manual Job Entry Form */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Plus className="w-5 h-5" />
-              Add Job Manually
-            </CardTitle>
-            <CardDescription>Create a single job listing</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleManualSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input
-                  placeholder="Job Title *"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  required
-                />
-                <Input
-                  placeholder="Company Name *"
-                  value={formData.company}
-                  onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                  required
-                />
-                <Input
-                  placeholder="Location *"
-                  value={formData.location}
-                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  required
-                />
-                <Input
-                  placeholder="Experience (e.g., 2-4 years) *"
-                  value={formData.experience}
-                  onChange={(e) => setFormData({ ...formData, experience: e.target.value })}
-                  required
-                />
-                <Input
-                  placeholder="Salary (optional)"
-                  value={formData.salary}
-                  onChange={(e) => setFormData({ ...formData, salary: e.target.value })}
-                />
-                <Select value={formData.jobType} onValueChange={(value) => setFormData({ ...formData, jobType: value })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Full-time">Full-time</SelectItem>
-                    <SelectItem value="Part-time">Part-time</SelectItem>
-                    <SelectItem value="Internship">Internship</SelectItem>
-                    <SelectItem value="Contract">Contract</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Input
-                  placeholder="Contact Email"
-                  type="email"
-                  value={formData.contactEmail}
-                  onChange={(e) => setFormData({ ...formData, contactEmail: e.target.value })}
-                />
-                <Input
-                  placeholder="WhatsApp Number"
-                  value={formData.contactWhatsApp}
-                  onChange={(e) => setFormData({ ...formData, contactWhatsApp: e.target.value })}
-                />
-              </div>
-              
-              <Textarea
-                placeholder="Job Description *"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                required
-                rows={4}
-              />
-              
-              <Textarea
-                placeholder="Requirements (one per line) *"
-                value={formData.requirements}
-                onChange={(e) => setFormData({ ...formData, requirements: e.target.value })}
-                required
-                rows={4}
-              />
-              
-              <Textarea
-                placeholder="Responsibilities (one per line) *"
-                value={formData.responsibilities}
-                onChange={(e) => setFormData({ ...formData, responsibilities: e.target.value })}
-                required
-                rows={4}
-              />
-              
-              <Textarea
-                placeholder="Benefits (one per line, optional)"
-                value={formData.benefits}
-                onChange={(e) => setFormData({ ...formData, benefits: e.target.value })}
-                rows={3}
-              />
+          <TabsContent value="add">
+            <Card>
+              <CardHeader>
+                <CardTitle>Post New Job</CardTitle>
+                <CardDescription>Add a new job posting to the board</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="title">Job Title *</Label>
+                      <Input
+                        id="title"
+                        value={jobForm.title}
+                        onChange={(e) => setJobForm({ ...jobForm, title: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="company">Company *</Label>
+                      <Input
+                        id="company"
+                        value={jobForm.company}
+                        onChange={(e) => setJobForm({ ...jobForm, company: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="location">Location *</Label>
+                      <Input
+                        id="location"
+                        value={jobForm.location}
+                        onChange={(e) => setJobForm({ ...jobForm, location: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="experience">Experience *</Label>
+                      <Input
+                        id="experience"
+                        placeholder="e.g., 3-5 years"
+                        value={jobForm.experience}
+                        onChange={(e) => setJobForm({ ...jobForm, experience: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="salary">Salary</Label>
+                      <Input
+                        id="salary"
+                        placeholder="e.g., ₹15-25 LPA"
+                        value={jobForm.salary}
+                        onChange={(e) => setJobForm({ ...jobForm, salary: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="jobType">Job Type *</Label>
+                      <Select
+                        value={jobForm.jobType}
+                        onValueChange={(value: any) => setJobForm({ ...jobForm, jobType: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Full-time">Full-time</SelectItem>
+                          <SelectItem value="Internship">Internship</SelectItem>
+                          <SelectItem value="Contract">Contract</SelectItem>
+                          <SelectItem value="Part-time">Part-time</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
 
-              <Button type="submit" className="w-full">
-                Post Job
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+                  <div className="space-y-2">
+                    <Label htmlFor="description">Description *</Label>
+                    <Textarea
+                      id="description"
+                      rows={4}
+                      value={jobForm.description}
+                      onChange={(e) => setJobForm({ ...jobForm, description: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="requirements">Requirements (one per line) *</Label>
+                    <Textarea
+                      id="requirements"
+                      rows={5}
+                      placeholder="Enter each requirement on a new line"
+                      value={jobForm.requirements}
+                      onChange={(e) => setJobForm({ ...jobForm, requirements: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="responsibilities">Responsibilities (one per line) *</Label>
+                    <Textarea
+                      id="responsibilities"
+                      rows={5}
+                      placeholder="Enter each responsibility on a new line"
+                      value={jobForm.responsibilities}
+                      onChange={(e) => setJobForm({ ...jobForm, responsibilities: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="benefits">Benefits (one per line)</Label>
+                    <Textarea
+                      id="benefits"
+                      rows={3}
+                      placeholder="Enter each benefit on a new line"
+                      value={jobForm.benefits}
+                      onChange={(e) => setJobForm({ ...jobForm, benefits: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="contactEmail">Contact Email</Label>
+                      <Input
+                        id="contactEmail"
+                        type="email"
+                        value={jobForm.contactEmail}
+                        onChange={(e) => setJobForm({ ...jobForm, contactEmail: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="contactWhatsApp">Contact WhatsApp</Label>
+                      <Input
+                        id="contactWhatsApp"
+                        placeholder="+91-XXXXXXXXXX"
+                        value={jobForm.contactWhatsApp}
+                        onChange={(e) => setJobForm({ ...jobForm, contactWhatsApp: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? 'Posting...' : 'Post Job'}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="upload">
+            <Card>
+              <CardHeader>
+                <CardTitle>Upload Jobs via CSV</CardTitle>
+                <CardDescription>
+                  Upload multiple jobs at once using a CSV file
+                  <br />
+                  <span className="text-xs">
+                    Format: title, company, location, experience, salary, jobType, description, requirements (pipe-separated), responsibilities (pipe-separated), benefits (pipe-separated), contactEmail, contactWhatsApp
+                  </span>
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="border-2 border-dashed rounded-lg p-8 text-center">
+                    <Upload className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                    <Label htmlFor="csv-upload" className="cursor-pointer">
+                      <span className="text-primary hover:underline">Choose CSV file</span> or drag and drop
+                    </Label>
+                    <Input
+                      id="csv-upload"
+                      type="file"
+                      accept=".csv"
+                      className="hidden"
+                      onChange={handleCSVUpload}
+                      disabled={loading}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );
