@@ -1,6 +1,6 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { Job, JobFilters as JobFiltersType } from '@/types/job';
-import { supabase } from '@/integrations/supabase/client';
+import { mockJobs } from '@/data/mockJobs';
 import { JobCard } from '@/components/JobCard';
 import { JobFilters } from '@/components/JobFilters';
 import { JobDetailModal } from '@/components/JobDetailModal';
@@ -19,46 +19,6 @@ const Index = () => {
     searchQuery: ''
   });
   const [heroSearch, setHeroSearch] = useState('');
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchJobs();
-  }, []);
-
-  const fetchJobs = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('jobs')
-        .select('*')
-        .order('date_posted', { ascending: false });
-
-      if (error) throw error;
-
-      const formattedJobs: Job[] = (data || []).map((job: any) => ({
-        id: job.id,
-        title: job.title,
-        company: job.company,
-        location: job.location,
-        experience: job.experience,
-        salary: job.salary,
-        datePosted: new Date(job.date_posted),
-        jobType: job.job_type as 'Full-time' | 'Internship' | 'Contract' | 'Part-time',
-        description: job.description,
-        requirements: job.requirements || [],
-        responsibilities: job.responsibilities || [],
-        benefits: job.benefits,
-        contactEmail: job.contact_email,
-        contactWhatsApp: job.contact_whatsapp,
-      }));
-
-      setJobs(formattedJobs);
-    } catch (error) {
-      console.error('Error fetching jobs:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleHeroSearch = () => {
     setFilters(prev => ({ ...prev, searchQuery: heroSearch }));
@@ -66,7 +26,7 @@ const Index = () => {
   };
 
   const filteredJobs = useMemo(() => {
-    return jobs.filter(job => {
+    return mockJobs.filter(job => {
       const matchesLocation = !filters.location || job.location.includes(filters.location);
       const matchesJobType = !filters.jobType || job.jobType === filters.jobType;
       const matchesExperience = !filters.experienceLevel || job.experience === filters.experienceLevel;
@@ -99,7 +59,7 @@ const Index = () => {
 
       return matchesLocation && matchesJobType && matchesExperience && matchesSearch && matchesDate;
     });
-  }, [jobs, filters]);
+  }, [mockJobs, filters]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -152,7 +112,7 @@ const Index = () => {
             <div className="flex items-center justify-center gap-6 mt-6 text-sm text-muted-foreground">
               <span className="flex items-center gap-2">
                 <span className="w-2 h-2 bg-secondary rounded-full animate-pulse" />
-                {jobs.length} Active Jobs
+                {mockJobs.length} Active Jobs
               </span>
               <span>•</span>
               <span>Updated Daily</span>
@@ -184,12 +144,7 @@ const Index = () => {
               </p>
             </div>
 
-            {loading ? (
-              <div className="text-center py-12">
-                <Briefcase className="w-16 h-16 mx-auto text-muted-foreground/50 mb-4 animate-pulse" />
-                <p className="text-muted-foreground">Loading jobs...</p>
-              </div>
-            ) : filteredJobs.length === 0 ? (
+            {filteredJobs.length === 0 ? (
               <div className="text-center py-12">
                 <Briefcase className="w-16 h-16 mx-auto text-muted-foreground/50 mb-4" />
                 <h3 className="text-xl font-semibold text-foreground mb-2">No jobs found</h3>
