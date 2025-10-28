@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Job, JobFilters as JobFiltersType } from '@/types/job';
-import { mockJobs } from '@/data/mockJobs';
+import { supabase } from '@/integrations/supabase/client';
 import { JobCard } from '@/components/JobCard';
 import { JobFilters } from '@/components/JobFilters';
 import { JobDetailModal } from '@/components/JobDetailModal';
@@ -11,6 +11,8 @@ import heroImage from '@/assets/hero-jobs.jpg';
 
 const Index = () => {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<JobFiltersType>({
     location: '',
     jobType: '',
@@ -20,13 +22,52 @@ const Index = () => {
   });
   const [heroSearch, setHeroSearch] = useState('');
 
+  useEffect(() => {
+    fetchJobs();
+  }, []);
+
+  const fetchJobs = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('*')
+        .order('date_posted', { ascending: false });
+
+      if (error) throw error;
+
+      const formattedJobs: Job[] = data.map(job => ({
+        id: job.id,
+        title: job.title,
+        company: job.company,
+        location: job.location,
+        experience: job.experience,
+        salary: job.salary || undefined,
+        datePosted: new Date(job.date_posted),
+        jobType: job.job_type as any,
+        description: job.description,
+        requirements: job.requirements || [],
+        responsibilities: job.responsibilities || [],
+        benefits: job.benefits || undefined,
+        contactEmail: job.contact_email || undefined,
+        contactWhatsApp: job.contact_whatsapp || undefined,
+        companyLogo: job.company_logo || undefined
+      }));
+
+      setJobs(formattedJobs);
+    } catch (error) {
+      console.error('Error fetching jobs:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleHeroSearch = () => {
     setFilters(prev => ({ ...prev, searchQuery: heroSearch }));
     document.getElementById('jobs-section')?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const filteredJobs = useMemo(() => {
-    return mockJobs.filter(job => {
+    return jobs.filter(job => {
       const matchesLocation = !filters.location || job.location.includes(filters.location);
       const matchesJobType = !filters.jobType || job.jobType === filters.jobType;
       const matchesExperience = !filters.experienceLevel || job.experience === filters.experienceLevel;
@@ -59,7 +100,15 @@ const Index = () => {
 
       return matchesLocation && matchesJobType && matchesExperience && matchesSearch && matchesDate;
     });
-  }, [mockJobs, filters]);
+  }, [jobs, filters]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-muted-foreground">Loading jobs...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -112,7 +161,7 @@ const Index = () => {
             <div className="flex items-center justify-center gap-6 mt-6 text-sm text-muted-foreground">
               <span className="flex items-center gap-2">
                 <span className="w-2 h-2 bg-secondary rounded-full animate-pulse" />
-                {mockJobs.length} Active Jobs
+                {jobs.length} Active Jobs
               </span>
               <span>•</span>
               <span>Updated Daily</span>
