@@ -1,12 +1,14 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Job, JobFilters as JobFiltersType } from '@/types/job';
-import { mockJobs } from '@/data/mockJobs';
+import { loadJobs, getSettings } from '@/store/jobsStore';
+import { refreshFromCsvSource } from '@/lib/sources';
 import { JobCard } from '@/components/JobCard';
 import { JobFilters } from '@/components/JobFilters';
 import { JobDetailModal } from '@/components/JobDetailModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Search, Briefcase } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import heroImage from '@/assets/hero-jobs.jpg';
 
 const Index = () => {
@@ -25,8 +27,27 @@ const Index = () => {
     document.getElementById('jobs-section')?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const jobs = useMemo(() => loadJobs(), []);
+
+  useEffect(() => {
+    const settings = getSettings();
+    if (!settings.autoRefreshMs || !settings.csvSourceUrl) return;
+    let active = true;
+    const tick = async () => {
+      await refreshFromCsvSource(settings);
+      if (!active) return;
+      setRefreshVersion(v => v + 1);
+    };
+    const id = setInterval(tick, settings.autoRefreshMs);
+    tick();
+    return () => { active = false; clearInterval(id); };
+  }, []);
+
+  const [refreshVersion, setRefreshVersion] = useState(0);
+
   const filteredJobs = useMemo(() => {
-    return mockJobs.filter(job => {
+    const list = loadJobs();
+    return list.filter(job => {
       const matchesLocation = !filters.location || job.location.includes(filters.location);
       const matchesJobType = !filters.jobType || job.jobType === filters.jobType;
       const matchesExperience = !filters.experienceLevel || job.experience === filters.experienceLevel;
@@ -59,7 +80,7 @@ const Index = () => {
 
       return matchesLocation && matchesJobType && matchesExperience && matchesSearch && matchesDate;
     });
-  }, [mockJobs, filters]);
+  }, [filters, refreshVersion]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -76,6 +97,9 @@ const Index = () => {
           }}
         />
         <div className="relative max-w-7xl mx-auto">
+          <div className="absolute right-0 -top-8">
+            <Link to="/admin" className="text-sm text-muted-foreground hover:underline">Admin</Link>
+          </div>
           <div className="text-center mb-8">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary mb-4">
               <Briefcase className="w-4 h-4" />
@@ -112,7 +136,7 @@ const Index = () => {
             <div className="flex items-center justify-center gap-6 mt-6 text-sm text-muted-foreground">
               <span className="flex items-center gap-2">
                 <span className="w-2 h-2 bg-secondary rounded-full animate-pulse" />
-                {mockJobs.length} Active Jobs
+                {jobs.length} Active Jobs
               </span>
               <span>•</span>
               <span>Updated Daily</span>
