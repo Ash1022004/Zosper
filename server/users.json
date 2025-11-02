@@ -1,0 +1,15 @@
+[
+  {
+    "id": 1,
+    "email": "ashish29133@gmail.com",
+    "password_hash": "$2a$10$HJOwrB9bnTv90thPKOyjIuADsDAUFv0fvQD5u/z45BBCSdFzn1jc6",
+    "role": "admin"
+  },
+  {
+    "id": 2,
+    "email": "ashishchaudhary29133@gmail.com",
+    "password_hash": "$2a$10$Um0O6g5RxHrI2dKg9hQYYeP4aIZE/ds4X09YoXVWLxbnVuaOxX50K",
+    "role": "user",
+    "name": "Ashish Chaudhary"
+  }
+]
